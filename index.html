@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BREACH PROTOCOL INTERFACE</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --yellow: #d0ed57;
+    --cyan: #00f0ff;
+    --dark: #0a0c14;
+    --dark2: #0d1018;
+    --yellow-dim: rgba(208, 237, 87, 0.15);
+    --cyan-dim: rgba(0, 240, 255, 0.15);
+    --cell-w: 82px;
+    --cell-h: 54px;
+  }
+
+  body {
+    background: var(--dark);
+    color: var(--yellow);
+    font-family: 'Rajdhani', 'Share Tech Mono', monospace;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    cursor: none;
+    user-select: none;
+  }
+
+  /* Scanlines */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.06) 2px, rgba(0,0,0,0.06) 4px);
+    pointer-events: none;
+    z-index: 9999;
+  }
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at 50% 40%, transparent 40%, rgba(0,0,0,0.45) 100%);
+    pointer-events: none;
+    z-index: 9998;
+  }
+
+  /* Cursor */
+  #cursor {
+    position: fixed;
+    width: 22px; height: 22px;
+    pointer-events: none;
+    z-index: 99999;
+    transform: translate(-50%,-50%);
+  }
+  #cursor::before {
+    content: '';
+    position: absolute; inset: 0;
+    border: 2px solid var(--cyan);
+  }
+  #cursor::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 4px; height: 4px;
+    background: var(--cyan);
+    transform: translate(-50%,-50%);
+    box-shadow: 0 0 6px var(--cyan);
+  }
+
+  /* ── LAYOUT ── */
+  #app {
+    width: 100vw; height: 100vh;
+    padding: 14px 28px 10px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+
+  /* ── TOP BAR ── */
+  .topbar {
+    display: flex;
+    align-items: center;
+    height: 28px;
+    margin-bottom: 6px;
+  }
+  .topbar-left {
+    font-family: 'Orbitron', monospace;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: 3px;
+    display: flex; align-items: center; gap: 2px;
+    white-space: nowrap;
+  }
+  .topbar-left .dash {
+    display: inline-block; width: 28px; height: 2px;
+    background: var(--yellow); margin: 0 3px;
+  }
+  .topbar-center {
+    flex: 1;
+    display: flex; justify-content: center; align-items: center;
+    position: relative;
+  }
+  .topbar-center::before, .topbar-center::after {
+    content: '';
+    flex: 1; height: 0;
+    border-top: 1px solid rgba(208,237,87,0.12);
+  }
+  .proto-badge {
+    background: var(--yellow);
+    color: var(--dark);
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 10px;
+    padding: 2px 18px;
+    letter-spacing: 2px;
+    white-space: nowrap;
+    margin: 0 6px;
+  }
+  .topbar-right {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: rgba(208,237,87,0.35);
+    letter-spacing: 1px;
+    white-space: nowrap;
+    text-align: right;
+  }
+
+  /* Decorative stripe under top bar */
+  .top-stripe {
+    height: 3px;
+    background: linear-gradient(90deg,
+      transparent 0%, var(--yellow) 10%, var(--yellow) 15%,
+      transparent 15.5%, transparent 40%,
+      rgba(208,237,87,0.15) 40%, rgba(208,237,87,0.15) 60%,
+      transparent 60.5%, transparent 84%,
+      var(--yellow) 84%, var(--yellow) 90%, transparent 100%);
+    margin-bottom: 6px;
+    opacity: 0.5;
+  }
+
+  /* ── GLOBE ── */
+  .globe {
+    position: absolute;
+    top: 52px; left: 26px;
+    width: 48px; height: 48px;
+    border: 1.5px solid rgba(208,237,87,0.25);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .globe::before {
+    content: '';
+    width: 30px; height: 30px;
+    border: 1px solid rgba(208,237,87,0.15);
+    border-radius: 50%;
+  }
+  .globe::after {
+    content: '';
+    position: absolute;
+    width: 1px; height: 30px;
+    background: rgba(208,237,87,0.15);
+  }
+
+  /* ── BUFFER (top center-right area) ── */
+  .buffer-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    margin: 2px 0 4px 420px;
+    gap: 16px;
+  }
+  .buffer-label {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    font-size: 15px;
+    letter-spacing: 4px;
+    border: 1px solid rgba(208,237,87,0.35);
+    padding: 2px 24px;
+    background: rgba(208,237,87,0.04);
+    text-align: center;
+    margin-bottom: 4px;
+  }
+  .buffer-slots {
+    display: flex; gap: 4px;
+  }
+  .buf-slot {
+    width: 50px; height: 50px;
+    border: 1.5px solid rgba(208,237,87,0.35);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 18px; font-weight: 700;
+    color: var(--yellow);
+    background: rgba(208,237,87,0.02);
+    position: relative;
+  }
+  .buf-slot.empty::after {
+    content: '[ ]';
+    color: rgba(208,237,87,0.15);
+    font-size: 20px;
+  }
+  .buf-slot.filled {
+    border-color: var(--yellow);
+    background: rgba(208,237,87,0.06);
+  }
+
+  /* ── TIME ── */
+  .time-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 2px 0 8px 88px;
+  }
+  .time-label {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 3px;
+  }
+  .time-val {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 20px; font-weight: 700;
+    background: rgba(208,237,87,0.06);
+    border: 1px solid rgba(208,237,87,0.35);
+    padding: 2px 14px;
+    min-width: 95px;
+    text-align: center;
+    letter-spacing: 2px;
+  }
+
+  /* ── MAIN ── */
+  .main {
+    display: flex;
+    gap: 18px;
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* ── CODE MATRIX ── */
+  .matrix-wrap {
+    position: relative;
+    width: 460px;
+    flex-shrink: 0;
+  }
+  .matrix-box {
+    border: 1.5px solid rgba(0,240,255,0.35);
+    background: rgba(0,18,28,0.35);
+    position: relative;
+  }
+  /* Corner brackets */
+  .cb { position: absolute; width: 14px; height: 14px; }
+  .cb-tl { top: -7px; left: -7px; border-top: 2px solid var(--cyan); border-left: 2px solid var(--cyan); }
+  .cb-tr { top: -7px; right: -7px; border-top: 2px solid var(--cyan); border-right: 2px solid var(--cyan); }
+  .cb-bl { bottom: -7px; left: -7px; border-bottom: 2px solid var(--cyan); border-left: 2px solid var(--cyan); }
+  .cb-br { bottom: -7px; right: -7px; border-bottom: 2px solid var(--cyan); border-right: 2px solid var(--cyan); }
+
+  .matrix-hdr {
+    background: rgba(208,237,87,0.6);
+    padding: 5px 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .matrix-hdr-icon {
+    font-size: 15px; color: var(--dark);
+    font-family: 'Share Tech Mono', monospace;
+    opacity: 0.7;
+  }
+  .matrix-hdr-txt {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700; font-size: 14px;
+    color: var(--dark); letter-spacing: 3px;
+  }
+
+  .grid-area {
+    position: relative;
+    padding: 6px 8px 8px;
+  }
+
+  /* Active row/col highlight band */
+  .band {
+    position: absolute;
+    pointer-events: none;
+    z-index: 1;
+    transition: all 0.15s ease;
+  }
+  .band-row {
+    left: 8px; right: 8px;
+    height: var(--cell-h);
+    background: rgba(0,240,255,0.045);
+    border-top: 1px solid rgba(0,240,255,0.18);
+    border-bottom: 1px solid rgba(0,240,255,0.18);
+  }
+  .band-col {
+    top: 6px; bottom: 8px;
+    width: var(--cell-w);
+    background: rgba(0,240,255,0.045);
+    border-left: 1px solid rgba(0,240,255,0.18);
+    border-right: 1px solid rgba(0,240,255,0.18);
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(5, var(--cell-w));
+    grid-template-rows: repeat(5, var(--cell-h));
+    position: relative;
+    z-index: 2;
+  }
+  .cell {
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 20px; font-weight: 700;
+    color: var(--yellow);
+    letter-spacing: 2px;
+    cursor: none;
+    position: relative;
+    z-index: 3;
+    transition: background 0.1s, color 0.15s;
+  }
+  .cell.active {
+    color: var(--yellow);
+  }
+  .cell.active:hover {
+    background: rgba(208,237,87,0.16);
+    color: #fff;
+    text-shadow: 0 0 8px rgba(208,237,87,0.5);
+  }
+  .cell.inactive {
+    color: rgba(208,237,87,0.35);
+  }
+  .cell.picked {
+    color: rgba(208,237,87,0.12) !important;
+    text-decoration: line-through;
+    text-decoration-color: rgba(208,237,87,0.2);
+  }
+
+  .dir-hint {
+    position: absolute;
+    bottom: -20px; left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: rgba(0,240,255,0.55);
+    letter-spacing: 2px;
+    white-space: nowrap;
+  }
+
+  /* Small text above matrix */
+  .matrix-above-text {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 7px;
+    color: rgba(208,237,87,0.12);
+    letter-spacing: 1px;
+    margin-bottom: 2px;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  /* ── RIGHT PANEL ── */
+  .right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  /* Sequence panel */
+  .seq-panel {
+    border: 1px solid rgba(0,240,255,0.25);
+    background: rgba(0,18,28,0.3);
+  }
+  .seq-hdr {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 12px;
+    border-bottom: 1px solid rgba(0,240,255,0.12);
+  }
+  .seq-icon {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: rgba(208,237,87,0.15);
+    border: 1px solid rgba(208,237,87,0.35);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: var(--yellow);
+  }
+  .seq-title {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700; font-size: 13px;
+    letter-spacing: 3px; color: var(--yellow);
+  }
+  .seq-meta {
+    margin-left: auto;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 8px;
+    color: rgba(208,237,87,0.25);
+    letter-spacing: 1px;
+  }
+  .seq-body {
+    padding: 10px 12px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .seq-codes {
+    display: flex; gap: 8px;
+  }
+  .seq-c {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 19px; font-weight: 700;
+    color: var(--yellow);
+    padding: 1px 3px;
+    letter-spacing: 1px;
+    position: relative;
+  }
+  .seq-c.matched { color: var(--cyan); text-shadow: 0 0 6px rgba(0,240,255,0.4); }
+  .seq-c.current::after {
+    content: '';
+    position: absolute; bottom: -2px; left: 0; right: 0;
+    height: 2px; background: var(--cyan);
+    box-shadow: 0 0 4px var(--cyan);
+  }
+
+  .ice-section {
+    display: flex; align-items: center; gap: 10px;
+    margin-left: auto;
+  }
+  .ice-icon {
+    width: 48px; height: 48px;
+    border: 1px solid rgba(208,237,87,0.2);
+    border-radius: 3px;
+    background: rgba(0,18,28,0.5);
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+  .ice-icon svg { width: 30px; height: 30px; }
+  .ice-info {}
+  .ice-name {
+    font-family: 'Orbitron', monospace;
+    font-size: 13px; font-weight: 700;
+    color: var(--cyan); letter-spacing: 2px;
+  }
+  .ice-desc {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 11px;
+    color: rgba(0,240,255,0.5);
+    letter-spacing: 0.5px;
+  }
+
+  /* Decorative random text */
+  .deco-text {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 7px;
+    color: rgba(208,237,87,0.12);
+    letter-spacing: 1px;
+    line-height: 1.5;
+    padding: 2px 0;
+  }
+
+  /* Breach Protocol info box */
+  .info-box {
+    border: 1.5px solid rgba(0,240,255,0.45);
+    background: linear-gradient(180deg, rgba(0,40,50,0.5) 0%, rgba(0,60,70,0.3) 100%);
+    position: relative;
+  }
+  .info-hdr {
+    padding: 8px 14px;
+    border-bottom: 1px solid rgba(0,240,255,0.15);
+  }
+  .info-title {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700; font-size: 17px;
+    color: var(--cyan);
+    letter-spacing: 4px;
+    text-shadow: 0 0 12px rgba(0,240,255,0.25);
+  }
+  .info-body {
+    padding: 12px 14px 30px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 15px;
+    color: rgba(208,237,87,0.75);
+    line-height: 1.65;
+    letter-spacing: 0.3px;
+  }
+  .info-body .hl-c { color: var(--cyan); font-weight: 700; }
+  .info-body .hl-y { color: var(--yellow); font-weight: 700; }
+  .info-close {
+    position: absolute; bottom: 8px; right: 12px;
+    width: 28px; height: 28px;
+    border: 1px solid rgba(0,240,255,0.35);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px; color: var(--cyan);
+    background: rgba(0,240,255,0.04);
+    border-radius: 2px;
+  }
+
+  /* ── BOTTOM BAR ── */
+  .bottombar {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 28px;
+    border-top: 1px solid rgba(208,237,87,0.06);
+  }
+  .bb-left {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 7px;
+    color: rgba(208,237,87,0.18);
+    letter-spacing: 1px;
+    line-height: 1.4;
+    max-width: 380px;
+  }
+  .bb-right {
+    display: flex; align-items: center; gap: 18px;
+  }
+  .bb-ctrl {
+    display: flex; align-items: center; gap: 5px;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600; font-size: 11px;
+    color: rgba(208,237,87,0.5);
+    letter-spacing: 2px;
+  }
+  .bb-key {
+    width: 22px; height: 22px;
+    border: 1px solid rgba(208,237,87,0.3);
+    border-radius: 2px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: var(--yellow);
+    background: rgba(208,237,87,0.04);
+  }
+
+  /* Left side decorations */
+  .left-deco {
+    position: absolute; left: 12px; bottom: 70px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .ld-item {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 8px; color: rgba(208,237,87,0.18);
+    display: flex; align-items: center; gap: 3px;
+  }
+  .ld-dot { width: 3px; height: 3px; background: rgba(208,237,87,0.25); }
+
+  /* Horizontal yellow lines (decorative) */
+  .yline {
+    position: absolute;
+    height: 1px;
+    background: rgba(208,237,87,0.1);
+    pointer-events: none;
+  }
+
+  /* ── FLASH ── */
+  #flash {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 9990;
+    opacity: 0;
+    transition: opacity 0.06s;
+  }
+  #flash.g { background: rgba(0,255,100,0.1); opacity: 1; }
+  #flash.r { background: rgba(255,0,50,0.12); opacity: 1; }
+
+  /* ── OVERLAYS ── */
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(5,5,15,0.92);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 10000;
+    cursor: none;
+  }
+  .overlay.hidden { display: none; }
+
+  .ov-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 34px; font-weight: 900;
+    letter-spacing: 8px;
+    margin-bottom: 6px;
+    text-shadow: 0 0 30px rgba(208,237,87,0.35);
+  }
+  .ov-sub {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px;
+    color: rgba(0,240,255,0.55);
+    letter-spacing: 4px;
+    margin-bottom: 36px;
+  }
+  .ov-btn {
+    font-family: 'Orbitron', monospace;
+    font-size: 14px; font-weight: 700;
+    color: var(--dark);
+    background: var(--yellow);
+    border: none;
+    padding: 12px 54px;
+    letter-spacing: 5px;
+    cursor: none;
+    position: relative;
+    transition: all 0.2s;
+  }
+  .ov-btn:hover {
+    background: var(--cyan);
+    box-shadow: 0 0 24px rgba(0,240,255,0.35);
+  }
+  .ov-btn::before { content: ''; position: absolute; top: -4px; left: -4px; width: 8px; height: 8px; border-top: 2px solid var(--yellow); border-left: 2px solid var(--yellow); }
+  .ov-btn::after { content: ''; position: absolute; bottom: -4px; right: -4px; width: 8px; height: 8px; border-bottom: 2px solid var(--yellow); border-right: 2px solid var(--yellow); }
+
+  .res-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 30px; font-weight: 900;
+    letter-spacing: 6px; margin-bottom: 10px;
+  }
+  .res-title.win { color: var(--cyan); text-shadow: 0 0 28px rgba(0,240,255,0.45); }
+  .res-title.lose { color: #ff3355; text-shadow: 0 0 28px rgba(255,51,85,0.45); }
+  .res-sub {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    color: rgba(208,237,87,0.55);
+    letter-spacing: 3px;
+    margin-bottom: 28px;
+  }
+  .res-btn {
+    font-family: 'Orbitron', monospace;
+    font-size: 13px; font-weight: 700;
+    color: var(--dark);
+    background: var(--cyan);
+    border: none;
+    padding: 10px 44px;
+    letter-spacing: 4px;
+    cursor: none;
+    transition: all 0.2s;
+  }
+  .res-btn:hover { background: var(--yellow); box-shadow: 0 0 18px rgba(208,237,87,0.35); }
+
+  /* Animations */
+  @keyframes pulse { 0%,100%{opacity:0.5}50%{opacity:1} }
+  @keyframes blink { 0%,100%{opacity:1}50%{opacity:0.3} }
+  .blink { animation: blink 1.2s infinite; }
+</style>
+</head>
+<body>
+
+<div id="cursor"></div>
+<div id="flash"></div>
+
+<!-- START -->
+<div class="overlay" id="ov-start">
+  <div class="ov-title" style="color:var(--yellow)">BREACH PROTOCOL</div>
+  <div class="ov-sub">// INITIALIZE HACKING SEQUENCE //</div>
+  <button class="ov-btn" id="btn-start">INITIATE</button>
+</div>
+
+<!-- RESULT -->
+<div class="overlay hidden" id="ov-result">
+  <div class="res-title" id="res-title"></div>
+  <div class="res-sub" id="res-sub"></div>
+  <button class="res-btn" id="btn-retry">RETRY</button>
+</div>
+
+<!-- GAME -->
+<div id="app">
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="topbar-left"><span class="dash"></span>NET<span class="dash"></span>TECH</div>
+    <div class="topbar-center">
+      <div class="proto-badge">BREACH PROTOCOL INTERFACE</div>
+    </div>
+    <div class="topbar-right">BKUMR-502Z-FFU4-0917-E327<br><span style="font-size:8px;opacity:0.6">BKUMR-502Z-FFU4-0917-E327</span></div>
+  </div>
+  <div class="top-stripe"></div>
+
+  <div class="globe"></div>
+
+  <!-- Random text decoration line -->
+  <div style="font-family:'Share Tech Mono',monospace;font-size:7px;color:rgba(208,237,87,0.1);letter-spacing:1px;margin:0 0 1px 88px;overflow:hidden;white-space:nowrap;">
+    01.VPQXOS09FPE7FS4EALSQ17EMUR25BA1K2E96DT84C83DSM/A06
+  </div>
+
+  <!-- Buffer (top center) -->
+  <div style="display:flex;flex-direction:column;align-items:center;margin:0 0 4px 340px;">
+    <div class="buffer-label">BUFFER</div>
+    <div class="buffer-slots" id="buf-slots"></div>
+  </div>
+
+  <!-- Time row (left aligned) -->
+  <div class="time-row">
+    <div class="time-label">BREACH TIME REMAINING</div>
+    <div class="time-val" id="timer">20.00</div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <!-- CODE MATRIX -->
+    <div class="matrix-wrap">
+      <div class="matrix-above-text">01.VPQXOS09FPE7FS4EALSQ17EMUR25BA1K2E96DT84C83DSM/A06.REDACTED</div>
+      <div class="matrix-box">
+        <div class="cb cb-tl"></div><div class="cb cb-tr"></div>
+        <div class="cb cb-bl"></div><div class="cb cb-br"></div>
+        <div class="matrix-hdr">
+          <div class="matrix-hdr-icon">▦▦</div>
+          <div class="matrix-hdr-txt">CODE MATRIX</div>
+        </div>
+        <div class="grid-area" id="grid-area">
+          <div class="band band-row" id="band-row"></div>
+          <div class="band band-col" id="band-col" style="display:none"></div>
+          <div class="grid" id="grid"></div>
+        </div>
+        <div class="dir-hint" id="dir-hint">▶ SELECT FROM ROW 1</div>
+      </div>
+      <!-- Small text below matrix -->
+      <div style="font-family:'Share Tech Mono',monospace;font-size:7px;color:rgba(208,237,87,0.1);letter-spacing:1px;margin-top:4px;">
+        5D2D09F70/7AF252A0E7B/947F15AF/9C032F37/0946B/B2C274F8/5305D
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="right">
+      <!-- Sequence Required -->
+      <div class="seq-panel">
+        <div class="seq-hdr">
+          <div class="seq-icon">⬡</div>
+          <div class="seq-title">SEQUENCE REQUIRED TO UPLOAD</div>
+          <div class="seq-meta">MODEL: LV8 &nbsp; SZ: 12AM</div>
+        </div>
+        <div class="seq-body">
+          <div class="seq-codes" id="seq-codes"></div>
+          <div class="ice-section">
+            <div class="ice-icon">
+              <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M20 4L35 12V28L20 36L5 28V12L20 4Z" stroke="rgba(208,237,87,0.4)" stroke-width="1.5" fill="rgba(208,237,87,0.05)"/>
+                <path d="M20 10L30 16V26L20 32L10 26V16L20 10Z" stroke="rgba(208,237,87,0.25)" stroke-width="1"/>
+                <circle cx="20" cy="20" r="4" fill="rgba(208,237,87,0.3)"/>
+              </svg>
+            </div>
+            <div class="ice-info">
+              <div class="ice-name">ICEPICK</div>
+              <div class="ice-desc">Reduces quickhack cost by 3 RAM units.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Decorative text -->
+      <div class="deco-text">
+        CUSTOM GLITCHES ON UI MAY APPEAR, BASED ON THIS ANALYSIS.<br>
+        5D2D09F70/7AF252A0E7B/947F15AF/9C032F37/0946B/B2C274F8/5305D<br>
+        TYPE: CYBERSPACE
+      </div>
+
+      <!-- Breach Protocol Info -->
+      <div class="info-box">
+        <div class="info-hdr"><div class="info-title">BREACH PROTOCOL</div></div>
+        <div class="info-body">
+          To upload the ICEpick daemon, you must
+          recreate its code sequence by selecting
+          characters from the <span class="hl-c">Code Matrix</span>. The
+          characters you select will be visible in the
+          <span class="hl-y">Buffer</span>.
+        </div>
+        <div class="info-close">C</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom bar -->
+  <div class="bottombar">
+    <div class="bb-left">
+      CUSTOM GLITCHES ON UI MAY APPEAR, BASED ON THIS ANALYSIS.<br>
+      D029RTD/07AF2524D3E716H5CDQOT7/D0046/B0Z27F#051DEDE<br>
+      TYPE: CYBERSPACE
+    </div>
+    <div class="bb-right">
+      <div class="bb-ctrl"><div class="bb-key">⊕</div><div class="bb-key">⊞</div> NAVIGATION</div>
+      <div class="bb-ctrl"><div class="bb-key">⊕</div><div class="bb-key">⊞</div><div class="bb-key">F</div> SELECT CODE</div>
+      <div class="bb-ctrl"><div class="bb-key">H</div> HELP</div>
+      <div class="bb-ctrl"><div class="bb-key">C</div><div class="bb-key">ESC</div> CLOSE</div>
+    </div>
+  </div>
+
+  <!-- Left decorations -->
+  <div class="left-deco">
+    <div class="ld-item"><div class="ld-dot"></div> P3</div>
+    <div class="ld-item"><div class="ld-dot"></div> 49.</div>
+    <div class="ld-item"><div class="ld-dot"></div> P0.</div>
+    <div class="ld-item"><div class="ld-dot"></div> P.Y</div>
+  </div>
+
+  <!-- Decorative horizontal lines -->
+  <div class="yline" style="top:108px;left:80px;width:540px;"></div>
+  <div class="yline" style="top:46px;left:0;width:100%;opacity:0.06;"></div>
+</div>
+
+<script>
+// ============ CONFIG ============
+const CODES = ['1C','55','BD','E9','7A','FF'];
+const N = 5;           // grid size
+const BUF = 4;         // buffer / target length
+const TLIMIT = 20;     // seconds
+
+// ============ STATE ============
+let grid, target, buffer, picked, isRow, activeIdx;
+let started = false, over = false;
+let timer, timeLeft;
+
+// ============ DOM REFS ============
+const $cursor  = document.getElementById('cursor');
+const $flash   = document.getElementById('flash');
+const $grid    = document.getElementById('grid');
+const $gridArea= document.getElementById('grid-area');
+const $bandR   = document.getElementById('band-row');
+const $bandC   = document.getElementById('band-col');
+const $dirHint = document.getElementById('dir-hint');
+const $timer   = document.getElementById('timer');
+const $seqCodes= document.getElementById('seq-codes');
+const $bufSlots= document.getElementById('buf-slots');
+const $ovStart = document.getElementById('ov-start');
+const $ovResult= document.getElementById('ov-result');
+const $resTitle= document.getElementById('res-title');
+const $resSub  = document.getElementById('res-sub');
+
+// ============ CURSOR ============
+document.addEventListener('mousemove', e => {
+  $cursor.style.left = e.clientX + 'px';
+  $cursor.style.top  = e.clientY + 'px';
+});
+
+// ============ INIT BUFFER SLOTS ============
+function initBufSlots() {
+  $bufSlots.innerHTML = '';
+  for (let i = 0; i < BUF; i++) {
+    const s = document.createElement('div');
+    s.className = 'buf-slot empty';
+    s.id = 'bs-' + i;
+    $bufSlots.appendChild(s);
+  }
+}
+initBufSlots();
+
+// ============ GENERATE ============
+function genTarget() {
+  target = [];
+  for (let i = 0; i < BUF; i++) target.push(CODES[Math.floor(Math.random()*CODES.length)]);
+}
+
+function genGrid() {
+  // Random fill
+  grid = Array.from({length:N}, () => Array.from({length:N}, () => CODES[Math.floor(Math.random()*CODES.length)]));
+
+  // Embed guaranteed solvable path (row→col→row→col)
+  const c0 = Math.floor(Math.random()*N);
+  const r1 = 1 + Math.floor(Math.random()*(N-1));
+  let c2;
+  do { c2 = Math.floor(Math.random()*N); } while(c2 === c0);
+  let r3;
+  do { r3 = Math.floor(Math.random()*N); } while(r3 === r1 || (r3 === 0 && c2 === c0));
+
+  grid[0][c0]   = target[0];
+  grid[r1][c0]  = target[1];
+  grid[r1][c2]  = target[2];
+  grid[r3][c2]  = target[3];
+}
+
+// ============ RENDER ============
+function renderGrid() {
+  $grid.innerHTML = '';
+  for (let r = 0; r < N; r++) {
+    for (let c = 0; c < N; c++) {
+      const d = document.createElement('div');
+      d.className = 'cell';
+      d.textContent = grid[r][c];
+      d.dataset.r = r;
+      d.dataset.c = c;
+      const id = r*N+c;
+      if (picked.has(id)) {
+        d.classList.add('picked');
+      } else if ((isRow && r === activeIdx) || (!isRow && c === activeIdx)) {
+        d.classList.add('active');
+      } else {
+        d.classList.add('inactive');
+      }
+      d.addEventListener('click', () => onPick(r, c));
+      $grid.appendChild(d);
+    }
+  }
+  updateBand();
+  updateDirHint();
+}
+
+function updateBand() {
+  if (isRow) {
+    $bandR.style.display = 'block';
+    $bandR.style.top = (6 + activeIdx * 54) + 'px';
+    $bandC.style.display = 'none';
+  } else {
+    $bandC.style.display = 'block';
+    $bandC.style.left = (8 + activeIdx * 82) + 'px';
+    $bandR.style.display = 'none';
+  }
+}
+
+function updateDirHint() {
+  $dirHint.textContent = isRow
+    ? `▶ SELECT FROM ROW ${activeIdx+1}`
+    : `▼ SELECT FROM COLUMN ${activeIdx+1}`;
+}
+
+function renderBuf() {
+  for (let i = 0; i < BUF; i++) {
+    const s = document.getElementById('bs-'+i);
+    if (i < buffer.length) {
+      s.textContent = buffer[i];
+      s.className = 'buf-slot filled';
+    } else {
+      s.textContent = '';
+      s.className = 'buf-slot empty';
+    }
+  }
+}
+
+function renderSeq() {
+  $seqCodes.innerHTML = '';
+  for (let i = 0; i < BUF; i++) {
+    const d = document.createElement('div');
+    d.className = 'seq-c';
+    d.textContent = target[i];
+    if (i < buffer.length && buffer[i] === target[i]) d.classList.add('matched');
+    if (i === buffer.length) d.classList.add('current');
+    $seqCodes.appendChild(d);
+  }
+}
+
+// ============ PICK ============
+function onPick(r, c) {
+  if (!started || over) return;
+  const id = r*N+c;
+  if (picked.has(id)) return;
+  if (isRow && r !== activeIdx) return;
+  if (!isRow && c !== activeIdx) return;
+
+  const val = grid[r][c];
+  buffer.push(val);
+  picked.add(id);
+
+  // Flash
+  flash(val === target[buffer.length-1] ? 'g' : 'r');
+
+  // Toggle direction
+  if (isRow) { isRow = false; activeIdx = c; }
+  else       { isRow = true;  activeIdx = r; }
+
+  renderGrid();
+  renderBuf();
+  renderSeq();
+
+  // Win / lose check
+  if (buffer.length === BUF) {
+    setTimeout(() => {
+      const win = buffer.every((v,i) => v === target[i]);
+      endGame(win);
+    }, 350);
+  }
+}
+
+// ============ FLASH ============
+function flash(cls) {
+  $flash.className = cls;
+  setTimeout(() => { $flash.className = ''; }, 140);
+}
+
+// ============ TIMER ============
+function startTimer() {
+  timeLeft = TLIMIT;
+  showTime();
+  timer = setInterval(() => {
+    timeLeft -= 0.01;
+    if (timeLeft <= 0) { timeLeft = 0; showTime(); endGame(false); return; }
+    showTime();
+  }, 10);
+}
+
+function showTime() {
+  $timer.textContent = Math.max(0, timeLeft).toFixed(2);
+  if (timeLeft <= 5) {
+    $timer.style.color = '#ff3355';
+    $timer.style.borderColor = 'rgba(255,51,85,0.45)';
+    $timer.style.textShadow = '0 0 8px rgba(255,51,85,0.35)';
+  } else {
+    $timer.style.color = '';
+    $timer.style.borderColor = '';
+    $timer.style.textShadow = '';
+  }
+}
+
+function stopTimer() { clearInterval(timer); timer = null; }
+
+// ============ GAME FLOW ============
+function startGame() {
+  $ovStart.classList.add('hidden');
+  $ovResult.classList.add('hidden');
+  started = true; over = false;
+  buffer = []; picked = new Set();
+  isRow = true; activeIdx = 0;
+  initBufSlots();
+  genTarget();
+  genGrid();
+  renderGrid();
+  renderBuf();
+  renderSeq();
+  startTimer();
+}
+
+function endGame(win) {
+  over = true; stopTimer();
+  if (win) {
+    $resTitle.textContent = 'UPLOAD COMPLETE';
+    $resTitle.className = 'res-title win';
+    $resSub.textContent = '// DAEMON SUCCESSFULLY UPLOADED //';
+  } else {
+    $resTitle.textContent = 'UPLOAD FAILED';
+    $resTitle.className = 'res-title lose';
+    $resSub.textContent = '// BREACH TIME EXPIRED OR SEQUENCE MISMATCH //';
+  }
+  setTimeout(() => { $ovResult.classList.remove('hidden'); }, 280);
+}
+
+document.getElementById('btn-start').addEventListener('click', startGame);
+document.getElementById('btn-retry').addEventListener('click', startGame);
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && started && !over) endGame(false);
+});
+</script>
+</body>
+</html>
